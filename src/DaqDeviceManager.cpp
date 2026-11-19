@@ -190,16 +190,16 @@ void DaqDeviceManager::releaseDevice(long long deviceNumber)
 
 	DaqDevice* daqDevice = NULL;
 
-	pthread_mutex_lock(&mCreatedDevicesMutex);
-
-	std::map<long long, DaqDevice*>::iterator itr = mCreatedDevicesMap.find(deviceNumber);
-	if(itr != mCreatedDevicesMap.end())
 	{
-		daqDevice = itr->second;
-		mCreatedDevicesMap.erase(itr);
-	}
+		UlLock lock(mCreatedDevicesMutex);
 
-	pthread_mutex_unlock(&mCreatedDevicesMutex);
+		std::map<long long, DaqDevice*>::iterator itr = mCreatedDevicesMap.find(deviceNumber);
+		if(itr != mCreatedDevicesMap.end())
+		{
+			daqDevice = itr->second;
+			mCreatedDevicesMap.erase(itr);
+		}
+	}
 
 	// the destructor joins the device threads, whose callbacks can call into the library, so delete outside the lock
 	if(daqDevice != NULL)
@@ -252,19 +252,19 @@ void DaqDeviceManager::releaseDevices()
 
 	std::vector<DaqDevice*> createdDevList;
 
-	pthread_mutex_lock(&mCreatedDevicesMutex);
+	{
+		UlLock lock(mCreatedDevicesMutex);
 
-	if(mCreatedDevicesMap.size())
-		UL_LOG("#### " << mCreatedDevicesMap.size() << " lingering device(s) being released: ");
-	else
-		UL_LOG("No lingering device found");
+		if(mCreatedDevicesMap.size())
+			UL_LOG("#### " << mCreatedDevicesMap.size() << " lingering device(s) being released: ");
+		else
+			UL_LOG("No lingering device found");
 
-	for(std::map<long long, DaqDevice*>::iterator itr = mCreatedDevicesMap.begin(); itr != mCreatedDevicesMap.end(); itr++)
-		createdDevList.push_back(itr->second);
+		for(std::map<long long, DaqDevice*>::iterator itr = mCreatedDevicesMap.begin(); itr != mCreatedDevicesMap.end(); itr++)
+			createdDevList.push_back(itr->second);
 
-	mCreatedDevicesMap.clear();
-
-	pthread_mutex_unlock(&mCreatedDevicesMutex);
+		mCreatedDevicesMap.clear();
+	}
 
 	for(unsigned int i = 0; i < createdDevList.size(); i++)
 		delete createdDevList[i];
